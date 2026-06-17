@@ -39,7 +39,7 @@ export default async function BookDetailPage({ params }: BookDetailPageProps) {
     );
   }
 
-  const addToCartHref = `/cart?add=${book.id}&title=${encodeURIComponent(book.title)}&price=${book.price.toFixed(2)}`;
+  const addToCartHref = `/cart?add=${book.id}`;
 
   return (
     <main style={{ padding: "2rem", maxWidth: "720px", margin: "0 auto" }}>

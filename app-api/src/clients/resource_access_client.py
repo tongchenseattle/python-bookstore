@@ -22,3 +22,17 @@ class ResourceAccessClient:
             response = await client.post(path, json=payload, headers=headers)
             response.raise_for_status()
             return response.json() if response.content else None
+
+    async def put(
+        self, path: str, payload: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> Any:
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=10.0) as client:
+            response = await client.put(path, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.json() if response.content else None
+
+    async def delete(self, path: str, headers: dict[str, str] | None = None) -> Any:
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=10.0) as client:
+            response = await client.delete(path, headers=headers)
+            response.raise_for_status()
+            return response.json() if response.content else None

@@ -1,135 +1,157 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-const CART_STORAGE_KEY = "bookstore_cart_v1";
+const APP_API_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_API_BASE_URL ?? "http://localhost:8000";
+const CART_ID_STORAGE_KEY = "bookstore_cart_id_v1";
 
 type CartItem = {
-  bookId: string;
+  book_id: string;
   title: string;
   price: number;
   quantity: number;
+  line_total: number;
 };
 
-function readCartFromStorage(): CartItem[] {
-  const raw = window.localStorage.getItem(CART_STORAGE_KEY);
-  if (!raw) {
-    return [];
+type CartResponse = {
+  cart_id: string;
+  items: CartItem[];
+  subtotal: number;
+};
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${APP_API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`);
   }
 
-  try {
-    const parsed = JSON.parse(raw) as CartItem[];
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter(
-      (item) =>
-        !!item.bookId &&
-        !!item.title &&
-        Number.isFinite(item.price) &&
-        Number.isFinite(item.quantity) &&
-        item.quantity > 0,
-    );
-  } catch {
-    return [];
+  if (response.status === 204) {
+    return {} as T;
   }
-}
 
-function saveCartToStorage(items: CartItem[]): void {
-  window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  return (await response.json()) as T;
 }
 
 export default function CartPage() {
   const searchParams = useSearchParams();
+  const [cartId, setCartId] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
+  const [subtotal, setSubtotal] = useState(0);
   const [message, setMessage] = useState("");
-  const hasLoadedCart = useRef(false);
-  const lastProcessedAddKey = useRef<string>("");
+  const [loading, setLoading] = useState(true);
+  const lastProcessedAddKey = useRef("");
+
+  async function loadCart(nextCartId: string): Promise<void> {
+    const cart = await apiRequest<CartResponse>(`/cart/${nextCartId}`, {
+      method: "GET",
+    });
+    setItems(cart.items ?? []);
+    setSubtotal(Number(cart.subtotal ?? 0));
+  }
 
   useEffect(() => {
-    const stored = readCartFromStorage();
-    setItems(stored);
-    hasLoadedCart.current = true;
+    const existingCartId = window.localStorage.getItem(CART_ID_STORAGE_KEY);
+    const nextCartId = existingCartId ?? crypto.randomUUID();
+    if (!existingCartId) {
+      window.localStorage.setItem(CART_ID_STORAGE_KEY, nextCartId);
+    }
+
+    const initializeCart = async () => {
+      try {
+        await apiRequest(`/cart/${nextCartId}/ensure`, {
+          method: "POST",
+          body: JSON.stringify({ session_id: "browser-session" }),
+        });
+        setCartId(nextCartId);
+        await loadCart(nextCartId);
+      } catch {
+        setMessage("Unable to load cart right now. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void initializeCart();
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedCart.current) {
+    if (!cartId) {
       return;
     }
 
     const addBookId = searchParams.get("add");
-    const title = searchParams.get("title");
-    const rawPrice = searchParams.get("price");
-
-    if (!addBookId || !title || !rawPrice) {
+    if (!addBookId) {
       return;
     }
 
-    const dedupeKey = `${addBookId}:${title}:${rawPrice}`;
+    const dedupeKey = `${cartId}:${addBookId}`;
     if (lastProcessedAddKey.current === dedupeKey) {
       return;
     }
 
-    const price = Number.parseFloat(rawPrice);
-    if (!Number.isFinite(price) || price < 0) {
-      setMessage("Unable to add book to cart due to invalid price.");
+    const addToCart = async () => {
+      try {
+        await apiRequest("/cart/items", {
+          method: "POST",
+          body: JSON.stringify({
+            cart_id: cartId,
+            book_id: addBookId,
+            quantity: 1,
+          }),
+        });
+        await loadCart(cartId);
+        setMessage("Book added to cart.");
+        lastProcessedAddKey.current = dedupeKey;
+        window.history.replaceState({}, "", "/cart");
+      } catch {
+        setMessage("Unable to add this book to cart.");
+      }
+    };
+
+    void addToCart();
+  }, [searchParams, cartId]);
+
+  async function updateQuantity(
+    bookId: string,
+    nextQuantity: number,
+  ): Promise<void> {
+    const normalized = Math.max(1, nextQuantity);
+    if (!cartId) {
       return;
     }
 
-    setItems((previous) => {
-      const existing = previous.find((item) => item.bookId === addBookId);
-      let updated: CartItem[];
-
-      if (existing) {
-        updated = previous.map((item) =>
-          item.bookId === addBookId
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        );
-      } else {
-        updated = [
-          ...previous,
-          {
-            bookId: addBookId,
-            title,
-            price,
-            quantity: 1,
-          },
-        ];
-      }
-
-      saveCartToStorage(updated);
-      return updated;
-    });
-
-    lastProcessedAddKey.current = dedupeKey;
-    setMessage(`Added "${title}" to cart.`);
-    window.history.replaceState({}, "", "/cart");
-  }, [searchParams]);
-
-  const subtotal = useMemo(() => {
-    return items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  }, [items]);
-
-  function updateQuantity(bookId: string, nextQuantity: number): void {
-    const normalized = Math.max(1, nextQuantity);
-    setItems((previous) => {
-      const updated = previous.map((item) =>
-        item.bookId === bookId ? { ...item, quantity: normalized } : item,
-      );
-      saveCartToStorage(updated);
-      return updated;
-    });
+    try {
+      await apiRequest(`/cart/${cartId}/items/${bookId}`, {
+        method: "PUT",
+        body: JSON.stringify({ quantity: normalized }),
+      });
+      await loadCart(cartId);
+    } catch {
+      setMessage("Unable to update cart quantity.");
+    }
   }
 
-  function removeItem(bookId: string): void {
-    setItems((previous) => {
-      const updated = previous.filter((item) => item.bookId !== bookId);
-      saveCartToStorage(updated);
-      return updated;
-    });
+  async function removeItem(bookId: string): Promise<void> {
+    if (!cartId) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/cart/${cartId}/items/${bookId}`, { method: "DELETE" });
+      await loadCart(cartId);
+    } catch {
+      setMessage("Unable to remove item from cart.");
+    }
   }
 
   return (
@@ -142,7 +164,9 @@ export default function CartPage() {
 
       {message ? <p>{message}</p> : null}
 
-      {items.length === 0 ? (
+      {loading ? <p>Loading cart...</p> : null}
+
+      {!loading && items.length === 0 ? (
         <p>Your cart is empty.</p>
       ) : (
         <>
@@ -175,7 +199,7 @@ export default function CartPage() {
                     }}
                   >
                     <strong>{item.title}</strong>
-                    <span>${lineTotal.toFixed(2)}</span>
+                    <span>${Number(lineTotal).toFixed(2)}</span>
                   </div>
 
                   <div
@@ -188,7 +212,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        updateQuantity(item.bookId, item.quantity - 1)
+                        void updateQuantity(item.book_id, item.quantity - 1)
                       }
                     >
                       -
@@ -197,7 +221,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       onClick={() =>
-                        updateQuantity(item.bookId, item.quantity + 1)
+                        void updateQuantity(item.book_id, item.quantity + 1)
                       }
                     >
                       +
@@ -208,7 +232,7 @@ export default function CartPage() {
                     <button
                       type="button"
                       style={{ marginLeft: "auto" }}
-                      onClick={() => removeItem(item.bookId)}
+                      onClick={() => void removeItem(item.book_id)}
                     >
                       Remove
                     </button>

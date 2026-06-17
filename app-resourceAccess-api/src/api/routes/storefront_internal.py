@@ -37,17 +37,51 @@ async def get_book(book_id: str, db: Session = Depends(get_db)):
 @router.post("/orders/cart-items")
 async def add_cart_item(payload: dict, db: Session = Depends(get_db)):
     repo = OrderRepository(db)
-    item = CartItem(
-        id=uuid.uuid4(),
+    created = repo.add_cart_item(
         cart_id=uuid.UUID(payload["cart_id"]),
         book_id=uuid.UUID(payload["book_id"]),
         quantity=int(payload["quantity"]),
-        unit_price=float(payload.get("unit_price", 0)),
-        line_total=float(payload.get("line_total", 0)),
     )
-    created = repo.add_cart_item(item.cart_id, item)
     db.commit()
     return {"id": str(created.id)}
+
+
+@router.post("/orders/carts/{cart_id}/ensure")
+async def ensure_cart(cart_id: str, payload: dict, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    cart = repo.ensure_cart(uuid.UUID(cart_id), payload.get("session_id", "browser-session"))
+    db.commit()
+    return {"cart_id": str(cart.id), "status": cart.status}
+
+
+@router.get("/orders/carts/{cart_id}")
+async def get_cart(cart_id: str, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    return repo.get_cart_view(uuid.UUID(cart_id))
+
+
+@router.put("/orders/carts/{cart_id}/items/{book_id}")
+async def set_cart_item_quantity(cart_id: str, book_id: str, payload: dict, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    item = repo.set_item_quantity(
+        cart_id=uuid.UUID(cart_id),
+        book_id=uuid.UUID(book_id),
+        quantity=int(payload["quantity"]),
+    )
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+    db.commit()
+    return {"book_id": str(item.book_id), "quantity": int(item.quantity)}
+
+
+@router.delete("/orders/carts/{cart_id}/items/{book_id}")
+async def remove_cart_item(cart_id: str, book_id: str, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    removed = repo.remove_item(cart_id=uuid.UUID(cart_id), book_id=uuid.UUID(book_id))
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cart item not found")
+    db.commit()
+    return {"removed": True}
 
 
 @router.post("/orders")

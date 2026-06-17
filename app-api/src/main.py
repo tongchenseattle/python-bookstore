@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
@@ -8,6 +9,13 @@ from src.api.routes.storefront import router as storefront_router
 from src.core.settings import settings
 
 app = FastAPI(title=settings.app_name)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:3000", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(storefront_router)
 app.include_router(admin_router)
 app.include_router(health_router)

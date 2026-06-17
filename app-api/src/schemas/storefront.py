@@ -14,7 +14,16 @@ class BookSummary(BaseModel):
 
 
 class CartItemPayload(BaseModel):
+    cart_id: UUID
     book_id: UUID
+    quantity: int = Field(ge=1)
+
+
+class CartEnsurePayload(BaseModel):
+    session_id: str = Field(min_length=1, max_length=128)
+
+
+class CartItemQuantityPayload(BaseModel):
     quantity: int = Field(ge=1)
 
 
