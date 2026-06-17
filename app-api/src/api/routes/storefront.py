@@ -34,6 +34,14 @@ async def get_books(
     return await service.list_books(categoryId)
 
 
+@router.get("/catalog/books/{bookId}")
+async def get_book_detail(
+    bookId: str,
+    service: CatalogService = Depends(get_catalog_service),
+):
+    return await service.get_book(bookId)
+
+
 @router.post("/cart/items")
 async def add_cart_item(payload: CartItemPayload, service: CartService = Depends(get_cart_service)):
     return await service.add_item(payload.model_dump())

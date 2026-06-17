@@ -20,7 +20,11 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const error = new Error(`API request failed: ${response.status}`) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
 
   return (await response.json()) as T;

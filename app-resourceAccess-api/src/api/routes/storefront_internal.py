@@ -1,7 +1,7 @@
 import datetime as dt
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.core.database import get_db
@@ -23,6 +23,15 @@ async def list_categories(db: Session = Depends(get_db)):
 async def list_books(category_id: str | None = Query(default=None), db: Session = Depends(get_db)):
     repo = BookRepository(db)
     return repo.list_published(category_id)
+
+
+@router.get("/books/{book_id}")
+async def get_book(book_id: str, db: Session = Depends(get_db)):
+    repo = BookRepository(db)
+    book = repo.get_published_by_id(book_id)
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    return book
 
 
 @router.post("/orders/cart-items")

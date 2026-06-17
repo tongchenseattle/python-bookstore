@@ -13,3 +13,6 @@ class CatalogService:
         if category_id:
             path += f"?category_id={category_id}"
         return await self.client.get(path)
+
+    async def get_book(self, book_id: str):
+        return await self.client.get(f"/internal/storefront/books/{book_id}")
