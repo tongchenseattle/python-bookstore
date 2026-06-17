@@ -1,0 +1,125 @@
+openapi: 3.0.3
+info:
+  title: app-api contract
+  version: 0.1.0
+  description: Business orchestration API for storefront and admin flows.
+paths:
+  /catalog/categories:
+    get:
+      summary: List active categories for storefront
+      responses:
+        '200':
+          description: Category list
+  /catalog/books:
+    get:
+      summary: List published books (optionally by category)
+      parameters:
+        - in: query
+          name: categoryId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book list
+  /catalog/books/{bookId}:
+    get:
+      summary: Get published book details
+      parameters:
+        - in: path
+          name: bookId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book details
+        '404':
+          description: Book not found or not published
+  /cart/items:
+    post:
+      summary: Add published book to cart
+      requestBody:
+        required: true
+      responses:
+        '201':
+          description: Item added
+        '400':
+          description: Validation error
+  /checkout/submit:
+    post:
+      summary: Submit pseudo checkout (requires authenticated user)
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          description: Pseudo order confirmed
+        '401':
+          description: Authentication required
+        '409':
+          description: Cart state conflict
+  /admin/categories:
+    post:
+      summary: Create category (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          description: Category created
+        '403':
+          description: Forbidden
+  /admin/categories/{categoryId}:
+    patch:
+      summary: Update category (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Category updated
+    delete:
+      summary: Delete category (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Category deleted
+        '409':
+          description: Category has linked books
+  /admin/books:
+    post:
+      summary: Create book (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          description: Book created
+  /admin/books/{bookId}:
+    patch:
+      summary: Update book (admin, optimistic concurrency)
+      security:
+        - cookieAuth: []
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Book updated
+        '409':
+          description: Concurrency conflict
+    delete:
+      summary: Delete book (admin)
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Book deleted
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session

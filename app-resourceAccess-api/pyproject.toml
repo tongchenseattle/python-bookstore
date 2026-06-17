@@ -1,0 +1,23 @@
+[project]
+name = "app-resourceaccess-api"
+version = "0.1.0"
+description = "Resource Access CRUD API"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111.0",
+  "uvicorn>=0.30.0",
+  "pydantic>=2.7.0",
+  "sqlalchemy>=2.0.31",
+  "alembic>=1.13.0",
+  "pyodbc>=5.1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2.0",
+  "pytest-asyncio>=0.23.0",
+  "ruff>=0.5.0"
+]
+
+[tool.ruff]
+line-length = 100

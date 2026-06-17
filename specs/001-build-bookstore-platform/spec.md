@@ -5,6 +5,16 @@
 **Status**: Draft  
 **Input**: User description: "build a pseudo bookstore using a modern layered architecture with a public storefront and an admin application for authentication and catalog CRUD"
 
+## Clarifications
+
+### Session 2026-06-17
+
+- Q: Must public users authenticate before pseudo checkout? -> A: Sign-in required at checkout
+- Q: How should category deletion behave when books are linked? -> A: Block delete if linked books
+- Q: How are concurrent admin edits to the same book resolved? -> A: Optimistic lock with retry
+- Q: Which books are visible in the public storefront? -> A: Published books only
+- Q: What price precision rule is required? -> A: Two-decimal currency rounding
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Browse and Buy Books in Public Storefront (Priority: P1)
@@ -20,6 +30,7 @@ A shopper visits the public web storefront, browses categories and books, views 
 1. **Given** a shopper is on the public storefront, **When** they select a category, **Then** only books in that category are shown.
 2. **Given** a shopper is viewing a book detail page, **When** they add the book to cart, **Then** the cart count and line item total update immediately.
 3. **Given** a shopper has at least one item in cart, **When** they submit checkout, **Then** the system creates a pseudo order confirmation with order summary.
+4. **Given** a shopper has items in cart but is not authenticated, **When** they initiate checkout submission, **Then** they are redirected to sign-in and return to checkout after authentication.
 
 ---
 
@@ -63,29 +74,33 @@ A development and operations team can verify that all user flows follow the inte
 - Concurrent admin edits to the same book causing update conflicts.
 - Public users requesting a book that was deleted or unpublished after page pre-render.
 - Empty catalog states for new deployments with no categories or books.
+- Rounding behavior when admin enters prices with more than two decimal places.
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
 - **FR-001**: System MUST provide a public storefront that lists categories and books and supports navigation to individual book details.
-- **FR-002**: System MUST allow public users to add books to a cart, adjust quantities, and complete a pseudo checkout confirmation flow.
+- **FR-002**: System MUST allow public users to add books to a cart, adjust quantities, and complete a pseudo checkout confirmation flow, requiring authentication at checkout submission.
 - **FR-003**: System MUST provide an admin web app with authenticated access for catalog administration.
 - **FR-004**: System MUST allow admins to create, read, update, and delete category records.
 - **FR-005**: System MUST allow admins to create, read, update, and delete book records with fields including title, publish date, price, description, and category association.
 - **FR-006**: System MUST validate admin form input and return clear, field-level errors for invalid data.
 - **FR-007**: System MUST prevent unauthorized users from executing admin catalog operations.
-- **FR-008**: System MUST enforce category-book referential rules so that invalid associations and unsafe deletes are blocked.
+- **FR-008**: System MUST enforce category-book referential rules so that invalid associations and unsafe deletes are blocked, including blocking category deletion while linked books exist.
 - **FR-009**: System MUST expose business operations through app-api and data CRUD operations through app-resourceAccess-api.
 - **FR-010**: System MUST persist catalog and pseudo-order data in SQL with consistent read/write behavior.
 - **FR-011**: System MUST generate structured operational logs for requests and errors without leaking secrets or sensitive tokens.
 - **FR-012**: System MUST propagate a request correlation identifier across app-ui, app-api, and app-resourceAccess-api for traceability.
+- **FR-013**: System MUST detect concurrent admin updates to the same book via optimistic concurrency checks and return a conflict response with retry guidance.
+- **FR-014**: System MUST expose only published books in the public storefront; unpublished or draft books MUST be hidden from public listing and detail routes.
+- **FR-015**: System MUST normalize and persist book price values using two-decimal currency rounding rules.
 
 ### Key Entities _(include if feature involves data)_
 
 - **UserAccount**: Represents a signed-in actor with role attributes such as admin or shopper and session state.
 - **Category**: Represents a logical grouping of books with attributes such as name, description, and status.
-- **Book**: Represents a sellable catalog item with title, publish date, price, description, stock indicator, and linked category.
+- **Book**: Represents a sellable catalog item with title, publish date, price, description, stock indicator, publish status, and linked category.
 - **Cart**: Represents a shopper basket containing selected books, quantities, and running totals.
 - **PseudoOrder**: Represents a submitted mock purchase with line items, totals, timestamp, and confirmation identifier.
 
@@ -106,6 +121,8 @@ A development and operations team can verify that all user flows follow the inte
 - **SC-003**: 100% of unauthorized admin route requests are blocked and routed to sign-in or denied actions.
 - **SC-004**: At least 95% of valid catalog page requests return visible content to users in under 2 seconds under expected team testing load.
 - **SC-005**: 100% of sampled cross-service requests in test runs can be traced end-to-end using a shared correlation identifier.
+- **SC-006**: 100% of attempted public checkout submissions by unauthenticated users are redirected to sign-in before order confirmation.
+- **SC-007**: 100% of admin update conflicts for the same book return a non-destructive conflict response without silent overwrite.
 
 ## Assumptions
 

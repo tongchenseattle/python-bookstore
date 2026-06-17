@@ -1,0 +1,68 @@
+openapi: 3.0.3
+info:
+  title: app-resourceAccess-api contract
+  version: 0.1.0
+  description: Internal data-access API exposed only to trusted services.
+servers:
+  - url: http://app-resourceAccess-api.internal
+paths:
+  /internal/categories:
+    get:
+      summary: Query categories
+      responses:
+        '200':
+          description: Category rows
+    post:
+      summary: Insert category
+      responses:
+        '201':
+          description: Category row created
+  /internal/categories/{categoryId}:
+    patch:
+      summary: Update category row
+      responses:
+        '200':
+          description: Category row updated
+    delete:
+      summary: Delete category row
+      responses:
+        '204':
+          description: Category row deleted
+        '409':
+          description: FK constraint conflict
+  /internal/books:
+    get:
+      summary: Query books
+      responses:
+        '200':
+          description: Book rows
+    post:
+      summary: Insert book
+      responses:
+        '201':
+          description: Book row created
+  /internal/books/{bookId}:
+    patch:
+      summary: Update book row with concurrency token
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Book row updated
+        '409':
+          description: Concurrency conflict
+    delete:
+      summary: Delete book row
+      responses:
+        '204':
+          description: Book row deleted
+  /internal/orders:
+    post:
+      summary: Persist pseudo order and line items
+      responses:
+        '201':
+          description: Order persisted
